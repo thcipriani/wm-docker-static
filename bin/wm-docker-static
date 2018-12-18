@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+REPO_DIR="$(dirname $(basename "$0"))"
+BASE="/home/thcipriani/public_html/docker"
+INDEX="${BASE}/index.html"
+IMAGES="$(python "$REPO_DIR"/bin/wm-docker-tags --repos)"
+IMAGE_LIST=
+
+mkdir -p "$BASE"
+
+make_image_index() {
+    local image="$1"
+    local image_base="${BASE}/${image}/tags"
+    local image_index="${image_base}/index.html"
+    local top_dir="$(realpath --relative-to="$image_base" "$BASE")"
+    cat > "$image_index" <<IMAGEINDEX
+<!doctype html5>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Wikimedia Docker - Image: ${image}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="${top_dir}/style.css" type="text/css" />
+</head>
+<body>
+    <h1>Wikimedia Docker - Image: ${image}</h1>
+
+    <nav>
+        <a href="${top_dir}">HOME</a>
+    </nav>
+IMAGEINDEX
+
+    local tags="$(python "$REPO_DIR"/bin/wm-docker-tags --image-tags "$image")"
+    local latest=$(echo $tags | tr ' ' '\n' | grep -v latest | sort -Vr | head -1)
+    local latest_img="docker-registry.wikimedia.org/${image}:${latest}"
+    printf '<div class="download"><h2>Download:</h2><code><pre>docker pull %s</pre></code></div>' "$latest_img" >> "$image_index"
+
+    printf '<div class="tags"><h2>Tags:</h2>' >> "$image_index"
+
+    local taglist
+    for tag in $tags; do
+        taglist+="<li>${tag}</li>"
+    done
+
+    printf '<ul>%b</ul></div>\n</body>\n</html>' "$taglist">> "$image_index"
+}
+
+cat > "$INDEX" <<HEAD
+<!doctype html5>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Wikimedia Docker - Images</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+</head>
+<body>
+    <h1>Wikimedia Docker - Images</h1>
+
+    <nav>
+        <a href="${top_dir}">HOME</a>
+    </nav>
+HEAD
+
+
+for image in $IMAGES; do
+    make_image_index "${image}"
+    IMAGE_LIST+="<li><a href=\"$image/tags/\">$image</a></li>"
+done
+
+printf '<ul>%b</ul>\n</body\n</html>\n' "$IMAGE_LIST" >> "$INDEX"
